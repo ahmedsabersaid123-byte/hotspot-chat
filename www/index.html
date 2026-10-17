@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>شات بلا نت</title>
+<style>
+*{box-sizing:border-box;margin:0}[hidden]{display:none!important}
+body{font-family:sans-serif;background:#e5ddd5;height:100dvh;overflow:hidden}
+#login{height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#075e54;color:#fff;padding:20px;text-align:center}
+#login input{padding:12px;border-radius:8px;border:0;font-size:18px;text-align:center;width:100%;max-width:320px}
+#man{display:flex;flex-direction:column;gap:8px;width:100%;align-items:center}
+button{border:0;border-radius:8px;padding:12px 14px;font-size:16px;background:#25d366;color:#fff}
+#login button{width:100%;max-width:320px}
+#app{display:flex;height:100dvh}
+#side{width:100%;background:#fff;display:flex;flex-direction:column}
+#main{display:none;flex:1;flex-direction:column;width:100%;min-width:0}
+#app.chat #side{display:none}#app.chat #main{display:flex}
+.bar{background:#075e54;color:#fff;padding:12px;display:flex;align-items:center;gap:8px;font-size:18px}
+.bar span{flex:1}.bar button{background:#128c7e;padding:6px 10px}
+#ipb{background:#fff8e1;padding:8px;font-size:13px;color:#555}
+#list{overflow-y:auto;flex:1}
+.it{padding:14px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}
+.it.on{background:#e8f5e9}.bd{background:#25d366;color:#fff;border-radius:12px;padding:2px 8px;font-size:13px}
+#msgs{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column}
+.m{max-width:80%;margin:3px 0;padding:6px 10px;border-radius:8px;background:#fff;align-self:flex-end;word-break:break-word}
+.m.me{background:#dcf8c6;align-self:flex-start}
+.m small{display:block;color:#888;font-size:11px}.m .sn{color:#128c7e;font-weight:bold}
+.m img{max-width:100%;max-height:260px;border-radius:6px;display:block}.m audio{max-width:100%}
+.cmp{display:flex;gap:6px;padding:6px;background:#f0f0f0;align-items:center}
+.cmp input[type=text]{flex:1;min-width:0;padding:10px;border-radius:20px;border:1px solid #ccc;font-size:16px}
+.cmp button{padding:8px 10px}.rc{background:#e53935!important}
+#big{position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000e;z-index:9}
+#gm{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;z-index:8}
+#gm>div{background:#fff;border-radius:10px;padding:16px;width:85%;max-width:360px;display:flex;flex-direction:column;gap:10px}
+#gm input[type=text]{padding:10px;border:1px solid #ccc;border-radius:8px;font-size:16px}
+#gu{max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+@media(min-width:700px){#side{width:320px;display:flex!important}#main{display:flex}#back{display:none}}
+</style></head><body>
+
+<div id="login">
+ <h2>💬 شات بلا نت</h2>
+ <input id="nm" placeholder="اكتب اسمك" maxlength="30">
+ <button id="bh">📡 أنا اللي فاتح الهوت سبوت (استضافة)</button>
+ <button id="bj" style="background:#128c7e">🔗 دخول على شات موجود</button>
+ <div id="stt"></div>
+ <div id="man" hidden>
+  <input id="ipf" placeholder="عنوان الجهاز التاني مثلاً 192.168.43.1" inputmode="decimal">
+  <button id="bm">اتصال</button><button id="bs" style="background:#6d4c41">🔍 بحث شامل</button>
+ </div>
+</div>
+
+<div id="app" hidden>
+ <div id="side">
+  <div class="bar"><span>💬 المحادثات <small id="st"></small></span><button id="ng">➕ مجموعة</button></div>
+  <div id="ipb" hidden></div>
+  <div id="list"></div>
+ </div>
+ <div id="main">
+  <div class="bar"><button id="back">➡️</button><span id="ttl"></span></div>
+  <div id="msgs"></div>
+  <div class="cmp" id="cmp" hidden><button id="pic">🖼️</button><button id="mic">🎤</button><input type="text" id="tx" placeholder="اكتب رسالة"><button id="sb">إرسال</button></div>
+ </div>
+</div>
+<input type="file" id="im" accept="image/*" hidden>
+<input type="file" id="au" accept="audio/*" hidden>
+<img id="big" hidden>
+<div id="gm" hidden><div><b>مجموعة جديدة</b><input type="text" id="gn" placeholder="اسم المجموعة"><div id="gu"></div>
+ <button id="gok">إنشاء</button><button id="gx" style="background:#999">إلغاء</button></div></div>
+
+<script src="cordova.js"></script>
+<script>
+var $=function(i){return document.getElementById(i)};
+var PORT=8765;
+var me={id:localStorage.cid||(localStorage.cid=Math.random().toString(36).slice(2,10)),name:localStorage.cname||''};
+var S={users:[],groups:[]},M={},cur=null,unread={},rec=null,ws=null,shown=false;
+function wsx(){return window.cordova&&cordova.plugins&&cordova.plugins.wsserver}
+function rid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function dm(o){return 'u:'+[me.id,o].sort().join('|')}
+function status(t){$('stt').textContent=t}
+if(me.name)$('nm').value=me.name;
+function need(){var n=$('nm').value.trim();if(!n){alert('اكتب اسمك الأول');return false}me.name=n;localStorage.cname=n;return true}
+
+/* ================= السيرفر (بيشتغل جوه جهاز صاحب الهوت سبوت) ================= */
+var U={},G={},H=[],BU={},CU={};
+function vis(m,id){
+ if(m.chat==='all')return true;
+ if(m.chat.indexOf('g:')===0){var g=G[m.chat.slice(2)];return !!g&&g.members.indexOf(id)>-1}
+ if(m.chat.indexOf('u:')===0)return m.chat.slice(2).split('|').indexOf(id)>-1;
+ return false}
+function sendC(c,o){try{wsx().send(c,JSON.stringify(o))}catch(e){}}
+function sendU(id,o){var b=BU[id];if(b)for(var k in b)sendC(b[k],o)}
+function pushState(){
+ var us=Object.keys(U).map(function(i){return{id:i,name:U[i].name,online:!!(BU[i]&&Object.keys(BU[i]).length)}});
+ for(var id in BU){sendU(id,{k:'state',users:us,groups:Object.keys(G).map(function(g){return G[g]}).filter(function(g){return g.members.indexOf(id)>-1})})}}
+function srvMsg(conn,raw){
+ var b;try{b=JSON.parse(raw)}catch(e){return}
+ if(b.k==='join'){
+  if(!b.id||!b.name)return;
+  U[b.id]={name:String(b.name).slice(0,30)};CU[conn.uuid]=b.id;(BU[b.id]=BU[b.id]||{})[conn.uuid]=conn;
+  sendC(conn,{k:'hist',msgs:H.filter(function(m){return vis(m,b.id)})});pushState();return}
+ var id=CU[conn.uuid];if(!id)return;
+ if(b.k==='msg'){
+  if(['text','image','audio'].indexOf(b.type)<0||typeof b.data!=='string'||typeof b.chat!=='string')return;
+  if(b.type!=='text'&&b.data.indexOf('data:')!==0)return;
+  var m={id:rid(),chat:b.chat,from:id,name:U[id].name,type:b.type,data:b.data,t:Date.now()};
+  if(!vis(m,id))return;
+  H.push(m);if(H.length>300)H.shift();
+  for(var u in BU)if(vis(m,u))sendU(u,{k:'msg',m:m})}
+ else if(b.k==='group'){
+  var mem=[id];(b.members||[]).forEach(function(i){if(U[i]&&mem.indexOf(i)<0)mem.push(i)});
+  var g={id:rid(),name:String(b.name||'مجموعة').slice(0,30),members:mem};G[g.id]=g;pushState()}}
+function srvClose(conn){var id=CU[conn.uuid];delete CU[conn.uuid];if(id&&BU[id])delete BU[id][conn.uuid];pushState()}
+
+function ownIps(cb){
+ var w=wsx();if(!w||!w.getInterfaces)return cb([]);
+ w.getInterfaces(function(r){var o=[];for(var k in r){(r[k].ipv4Addresses||[]).forEach(function(a){if(a.indexOf('127.')!==0)o.push(a)})}cb(o)},function(){cb([])})}
+function bases(cb){ownIps(function(ips){var o=[];ips.forEach(function(a){if(/^(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[01]))/.test(a)){var p=a.split('.').slice(0,3).join('.');if(o.indexOf(p)<0)o.push(p)}});cb(o)})}
+
+$('bh').onclick=function(){
+ if(!need())return;var w=wsx();
+ if(!w){alert('وضع الاستضافة بيشتغل جوه الـ APK بس (مش في المتصفح)');return}
+ status('بشغّل السيرفر...');
+ w.start(PORT,{onFailure:function(a,p,r){alert('السيرفر وقف: '+r)},onOpen:function(){},onMessage:srvMsg,onClose:srvClose},
+  function(){connect('127.0.0.1');
+   ownIps(function(ips){var b=$('ipb');b.hidden=false;b.textContent='📡 أنت المضيف. الجهاز التاني يدخل "دخول على شات موجود" '+(ips.length?'(لو ماظهرش لوحده اكتب: '+ips.join(' أو ')+')':'')})},
+  function(e){alert('فشل تشغيل السيرفر: '+e);status('')})};
+
+/* ================= الدخول على شات موجود ================= */
+function probe(a,ms,cb){var done=false,s,t;
+ function fin(r){if(done)return;done=true;clearTimeout(t);try{s.close()}catch(e){}cb(r)}
+ try{s=new WebSocket('ws://'+a+':'+PORT)}catch(e){return cb(false)}
+ t=setTimeout(function(){fin(false)},ms);s.onopen=function(){fin(true)};s.onerror=function(){fin(false)}}
+$('bj').onclick=function(){
+ if(!need())return;status('بدوّر على السيرفر...');
+ bases(function(bs){var c=[];if(localStorage.lastip)c.push(localStorage.lastip);bs.forEach(function(b){c.push(b+'.1')});c.push('192.168.43.1');
+  c=c.filter(function(x,i){return c.indexOf(x)===i});
+  (function next(i){if(i>=c.length){status('مالقيتش السيرفر. تأكد إنك متصل بالهوت سبوت، أو اكتب العنوان بإيدك.');$('man').hidden=false;return}
+   probe(c[i],1500,function(ok){if(ok)connect(c[i]);else next(i+1)})})(0)})};
+$('bm').onclick=function(){var a=$('ipf').value.trim();if(!a)return;status('بتصل...');probe(a,3000,function(ok){if(ok)connect(a);else status('مفيش سيرفر على العنوان ده')})};
+$('bs').onclick=function(){
+ bases(function(bs){if(!bs.length){status('مش قادر أعرف شبكتك. اكتب العنوان بإيدك.');return}
+  var L=[];bs.forEach(function(b){for(var i=1;i<255;i++)L.push(b+'.'+i)});
+  var found=false,idx=0,act=0;status('بعمل بحث شامل...');
+  function pump(){while(act<40&&idx<L.length&&!found){(function(a){act++;probe(a,1200,function(ok){act--;if(ok&&!found){found=true;connect(a)}else pump();if(!found&&idx>=L.length&&act===0)status('مفيش نتيجة')})})(L[idx++])}}
+  pump()})};
+
+/* ================= الاتصال والرسايل ================= */
+function connect(addr){
+ localStorage.lastip=addr;var s=new WebSocket('ws://'+addr+':'+PORT),ok=false;ws=s;
+ s.onopen=function(){ok=true;$('st').textContent='🟢';s.send(JSON.stringify({k:'join',id:me.id,name:me.name}));
+  if(!shown){shown=true;$('login').hidden=true;$('app').hidden=false}};
+ s.onmessage=function(e){var d=JSON.parse(e.data);
+  if(d.k==='hist'){M={};d.msgs.forEach(addM);drawList();drawMsgs()}
+  else if(d.k==='state'){S=d;drawList()}
+  else if(d.k==='msg'){var m=d.m;addM(m);
+   if(m.chat===cur){var c=$('msgs');c.appendChild(mk(m));c.scrollTop=c.scrollHeight}
+   else if(m.from!==me.id)unread[m.chat]=(unread[m.chat]||0)+1;
+   drawList()}};
+ s.onclose=function(){$('st').textContent='🔴';if(ok&&ws===s)setTimeout(function(){if(ws===s)connect(addr)},2000)};
+ s.onerror=function(){}}
+function addM(m){(M[m.chat]=M[m.chat]||[]).push(m)}
+function out(o){if(!ws||ws.readyState!==1){alert('مفيش اتصال دلوقتي');return false}ws.send(JSON.stringify(o));return true}
+function snd(type,data){if(!cur)return;if(data.length>12e6){alert('الملف كبير');return}out({k:'msg',chat:cur,type:type,data:data})}
+
+/* ================= الواجهة ================= */
+function drawList(){var l=$('list');l.innerHTML='';
+ var items=[{id:'all',n:'👥 الشات العام'}];
+ S.users.forEach(function(u){if(u.id!==me.id)items.push({id:dm(u.id),n:(u.online?'🟢 ':'⚪ ')+u.name})});
+ S.groups.forEach(function(g){items.push({id:'g:'+g.id,n:'🫂 '+g.name})});
+ items.forEach(function(it){var d=document.createElement('div');d.className='it'+(it.id===cur?' on':'');
+  var s=document.createElement('span');s.textContent=it.n;d.appendChild(s);
+  if(unread[it.id]){var b=document.createElement('b');b.className='bd';b.textContent=unread[it.id];d.appendChild(b)}
+  d.onclick=function(){cur=it.id;unread[cur]=0;$('ttl').textContent=it.n;$('app').className='chat';$('cmp').hidden=false;drawList();drawMsgs()};
+  l.appendChild(d)})}
+function mk(m){var d=document.createElement('div');d.className='m'+(m.from===me.id?' me':'');
+ if(m.from!==me.id&&cur.charAt(0)!=='u'){var s=document.createElement('small');s.className='sn';s.textContent=m.name;d.appendChild(s)}
+ var el;
+ if(m.type==='text'){el=document.createElement('div');el.textContent=m.data}
+ else if(m.type==='image'){el=document.createElement('img');el.src=m.data;el.onclick=function(){$('big').src=m.data;$('big').hidden=false}}
+ else{el=document.createElement('audio');el.controls=true;el.src=m.data}
+ d.appendChild(el);
+ var t=document.createElement('small');t.textContent=new Date(m.t).toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});d.appendChild(t);
+ return d}
+function drawMsgs(){var c=$('msgs');c.innerHTML='';if(!cur)return;(M[cur]||[]).forEach(function(m){c.appendChild(mk(m))});c.scrollTop=c.scrollHeight}
+$('big').onclick=function(){this.hidden=true};
+$('back').onclick=function(){cur=null;$('app').className='';$('msgs').innerHTML='';$('cmp').hidden=true;drawList()};
+function sendText(){var v=$('tx').value.trim();if(v){snd('text',v);$('tx').value=''}}
+$('sb').onclick=sendText;
+$('tx').onkeydown=function(e){if(e.key==='Enter')sendText()};
+
+$('pic').onclick=function(){$('im').click()};
+$('im').onchange=function(){var f=this.files[0];this.value='';if(!f)return;var r=new FileReader();
+ r.onload=function(){var i=new Image();i.onload=function(){var k=Math.min(1,1024/Math.max(i.width,i.height)),c=document.createElement('canvas');
+  c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);snd('image',c.toDataURL('image/jpeg',.7))};i.src=r.result};
+ r.readAsDataURL(f)};
+
+function sendBlob(b){var r=new FileReader();r.onload=function(){snd('audio',r.result)};r.readAsDataURL(b)}
+$('au').onchange=function(){var f=this.files[0];this.value='';if(f)sendBlob(f)};
+function reqMic(cb){var p=window.cordova&&cordova.plugins&&cordova.plugins.permissions;if(!p)return cb();p.requestPermission(p.RECORD_AUDIO,function(){cb()},function(){cb()})}
+$('mic').onclick=function(){
+ if(rec){rec.stop();return}
+ if(!(navigator.mediaDevices&&window.MediaRecorder)){$('au').click();return}
+ reqMic(function(){
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){var ch=[];rec=new MediaRecorder(s,{audioBitsPerSecond:32000});
+   rec.ondataavailable=function(e){ch.push(e.data)};
+   rec.onstop=function(){s.getTracks().forEach(function(t){t.stop()});sendBlob(new Blob(ch,{type:rec.mimeType}));rec=null;$('mic').textContent='🎤';$('mic').classList.remove('rc')};
+   rec.start();$('mic').textContent='⏹️';$('mic').classList.add('rc')}).catch(function(){$('au').click()})})};
+
+$('ng').onclick=function(){var b=$('gu');b.innerHTML='';
+ S.users.forEach(function(u){if(u.id===me.id)return;var l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.value=u.id;l.appendChild(c);l.appendChild(document.createTextNode(' '+u.name));b.appendChild(l)});
+ $('gm').hidden=false};
+$('gx').onclick=function(){$('gm').hidden=true};
+$('gok').onclick=function(){var n=$('gn').value.trim(),m=[].map.call($('gu').querySelectorAll('input:checked'),function(c){return c.value});
+ if(!n||!m.length)return alert('اكتب اسم المجموعة واختار أعضاء');out({k:'group',name:n,members:m});$('gn').value='';$('gm').hidden=true};
+</script></body></html>
