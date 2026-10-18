@@ -1,0 +1,11 @@
+{
+  "name": "chatnative",
+  "version": "1.0.0",
+  "description": "Notifications and background service for the chat app",
+  "cordova": {
+    "id": "chatnative",
+    "platforms": ["android"]
+  },
+  "keywords": ["ecosystem:cordova", "cordova-android"],
+  "license": "MIT"
+}
