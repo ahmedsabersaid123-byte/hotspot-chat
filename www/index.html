@@ -90,7 +90,7 @@ button{border:0;border-radius:8px;padding:12px 14px;font-size:16px;background:#2
 var $=function(i){return document.getElementById(i)};
 var PORT=8765;
 var me={id:localStorage.cid||(localStorage.cid=Math.random().toString(36).slice(2,10)),name:localStorage.cname||''};
-var S={users:[],groups:[],clr:{a:0,m:0}},M={},cur=null,rec=null,ws=null,shown=false,isHost=false,fg=true,CD=null,SD=null,ct=null,hv=false,cs=null,cf='environment';
+var S={users:[],groups:[],clr:{a:0,m:0}},M={},cur=null,rec=null,ws=null,shown=false,isHost=false,fg=true,CD=null,SD=null,ct=null,curAddr='',hv=false,cs=null,cf='environment';
 var DL={};try{DL=JSON.parse(localStorage.dels||'{}')}catch(e){}
 function wsx(){return window.cordova&&cordova.plugins&&cordova.plugins.wsserver}
 function nat(a,g){try{ChatNative.call(a,g||[])}catch(e){}}
@@ -107,7 +107,7 @@ function idb(n,cb){try{var r=indexedDB.open(n,1);r.onupgradeneeded=function(){r.
 function dbp(d,s,v,k){if(d)try{d.transaction(s,'readwrite').objectStore(s).put(v,k)}catch(e){}}
 function dbd(d,s,k){if(d)try{d.transaction(s,'readwrite').objectStore(s).delete(k)}catch(e){}}
 function dbg(d,s,k,cb){if(!d)return cb();try{var q=d.transaction(s).objectStore(s),r=k===undefined?q.getAll():q.get(k);r.onsuccess=function(){cb(r.result)};r.onerror=function(){cb()}}catch(e){cb()}}
-idb('cli',function(d){CD=d;dbg(d,'k','c',function(c){if(c){S=c.S||S;M=c.M||M;for(var k in M)M[k]=M[k].filter(function(m){return !DL[m.id]})}})});
+/* الجهاز بيحفظ اسمه بس — مفيش أسماء أو رسايل أجهزة تانية بتتخزن عليه */
 
 /* ================= السيرفر (على جهاز الهوت سبوت) ================= */
 var U={},G={},H=[],BU={},CU={},TD={},CA=0,CM=0;
@@ -156,27 +156,6 @@ function srvMsg(conn,raw){
  else if(b.k==='group'){
   var mem=[id];(b.members||[]).forEach(function(i){if(U[i]&&mem.indexOf(i)<0)mem.push(i)});
   var g={id:rid(),name:String(b.name||'مجموعة').slice(0,30),members:mem};G[g.id]=g;sv();pushState()}
- else if(b.k==='have'){
-  var nm={};(b.users||[]).forEach(function(x){if(x&&x.id)nm[x.id]=String(x.name||'؟').slice(0,30)});
-  (b.groups||[]).forEach(function(g2){if(g2&&g2.id&&!G[g2.id]&&g2.members&&g2.members.indexOf(id)>-1){
-   g2.members.forEach(function(x){if(!U[x]&&nm[x])U[x]={name:nm[x]}});
-   G[g2.id]={id:g2.id,name:String(g2.name||'مجموعة').slice(0,30),members:g2.members.filter(function(x){return !!U[x]})}}});
-  var have={};H.forEach(function(x){have[x.id]=1});
-  var ms=b.ms||[],gone=ms.filter(function(x){return TD[x[0]]}).map(function(x){return x[0]});
-  var need=ms.filter(function(x){return !have[x[0]]&&!TD[x[0]]&&vis({chat:x[1]},id)}).map(function(x){return x[0]});
-  sv();pushState();
-  if(gone.length)sendC(conn,{k:'del',ids:gone});
-  if(need.length)sendC(conn,{k:'need',ids:need})}
- else if(b.k==='seed'){
-  var add=0,have2={};H.forEach(function(x){have2[x.id]=1});
-  (b.msgs||[]).forEach(function(m){
-   if(!m||!m.id||typeof m.chat!=='string'||have2[m.id]||TD[m.id])return;
-   if(['text','image','audio'].indexOf(m.type)<0||typeof m.data!=='string')return;
-   if(m.t<=CA||(m.type!=='text'&&m.t<=CM)||!vis(m,id))return;
-   m.to=m.to||[];m.dl=m.dl||[];m.rd=m.rd||[];
-   if(!U[m.from])U[m.from]={name:String(m.name||'؟').slice(0,30)};
-   H.push(m);have2[m.id]=1;dbp(SD,'m',m);add++});
-  if(add){H.sort(function(x,y){return x.t-y.t});sv();pushState();for(var u4 in BU)sendHist(u4)}}
  else if(b.k==='adm'){
   if(b.op==='ren'&&U[b.uid]&&b.name){U[b.uid].name=String(b.name).slice(0,30);sv();pushState()}
   else if(b.op==='delu'&&U[b.uid]&&b.uid!==id){
@@ -240,28 +219,24 @@ $('bm').onclick=function(){var a=$('ipf').value.trim();if(!a)return;status('بت
 function showApp(){if(shown)return;shown=true;$('login').hidden=true;$('app').hidden=false;nat('perm');nat('start');
  if(!localStorage.bo){localStorage.bo=1;setTimeout(function(){nat('battery')},1500)}}
 function connect(addr,n){n=n||0;if(addr!=='127.0.0.1')localStorage.lastip=addr;
+ if(addr!==curAddr){curAddr=addr;M={};S={users:[],groups:[],clr:{a:0,m:0}}}
  var s=new WebSocket('ws://'+addr+':'+PORT),ok=false;ws=s;hv=false;
  s.onopen=function(){ok=true;$('nb').hidden=true;$('st').textContent='🟢';s.send(JSON.stringify({k:'join',id:me.id,name:me.name}));showApp()};
  s.onmessage=function(e){var d=JSON.parse(e.data);
-  if(d.k==='hist'){if(d.full)M={};d.msgs.forEach(addM);sortM();drawList();drawMsgs();markRead();sc();
-   if(!hv){hv=true;var ms=[];for(var c in M)M[c].forEach(function(m){ms.push([m.id,m.chat])});
-    if(ms.length||S.groups.length)out({k:'have',ms:ms,groups:S.groups,users:S.users.map(function(u){return{id:u.id,name:u.name}})},true)}}
+  if(d.k==='hist'){if(d.full)M={};d.msgs.forEach(addM);sortM();drawList();drawMsgs();markRead()}
   else if(d.k==='state'){S=d;if(!S.clr)S.clr={a:0,m:0};var mu=S.users.filter(function(u){return u.id===me.id})[0];if(mu&&mu.name!==me.name){me.name=mu.name;localStorage.cname=me.name}applyClr();drawList();subt();sc()}
   else if(d.k==='msg'){var m=d.m;addM(m);
    if(m.chat===cur&&fg){if(!$('e_'+m.id)){var c2=$('msgs');c2.appendChild(mk(m));c2.scrollTop=c2.scrollHeight}markRead()}
    else if(m.from!==me.id&&!fg)notify(m);
    drawList();sc()}
   else if(d.k==='upd'){d.ms.forEach(function(u){for(var c in M)M[c].forEach(function(m){if(m.id===u.id){m.dl=u.dl;m.rd=u.rd;var t=$('t_'+m.id);if(t)tick(m,t)}})});sc()}
-  else if(d.k==='del'){d.ids.forEach(function(i){for(var c in M)M[c]=M[c].filter(function(m){return m.id!==i});var el=$('e_'+i);if(el)el.remove()});drawList();sc()}
-  else if(d.k==='need'){var want={},arr=[];d.ids.forEach(function(i){want[i]=1});
-   for(var c3 in M)M[c3].forEach(function(m){if(want[m.id])arr.push(m)});
-   for(var i=0;i<arr.length;i+=6)out({k:'seed',msgs:arr.slice(i,i+6)},true)}};
+  else if(d.k==='del'){d.ids.forEach(function(i){for(var c in M)M[c]=M[c].filter(function(m){return m.id!==i});var el=$('e_'+i);if(el)el.remove()});drawList();sc()}};
  s.onclose=function(){$('st').textContent='🔴';if(ws!==s)return;
   setTimeout(function(){if(ws===s&&ws.readyState!==1&&shown)$('nb').hidden=false},5000);
   if(n>=5&&!isHost){find(function(a){if(a)connect(a,0);else $('st').textContent='🔴 مفيش سيرفر'});return}
   setTimeout(function(){if(ws===s)connect(addr,ok?1:n+1)},2000)};
  s.onerror=function(){}}
-function sc(){if(!CD)return;clearTimeout(ct);ct=setTimeout(function(){dbp(CD,'k',{S:S,M:M},'c')},1500)}
+function sc(){}
 function addM(m){if(DL[m.id])return;var a=(M[m.chat]=M[m.chat]||[]);for(var i=0;i<a.length;i++)if(a[i].id===m.id){a[i]=m;return}a.push(m)}
 function sortM(){for(var c in M)M[c].sort(function(x,y){return x.t-y.t})}
 function applyClr(){var c=S.clr||{a:0,m:0},ch=false;
