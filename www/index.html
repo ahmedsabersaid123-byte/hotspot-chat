@@ -90,7 +90,7 @@ button{border:0;border-radius:8px;padding:12px 14px;font-size:16px;background:#2
 var $=function(i){return document.getElementById(i)};
 var PORT=8765;
 var me={id:localStorage.cid||(localStorage.cid=Math.random().toString(36).slice(2,10)),name:localStorage.cname||''};
-var S={users:[],groups:[],clr:{a:0,m:0}},M={},cur=null,rec=null,ws=null,shown=false,isHost=false,fg=true,CD=null,SD=null,ct=null,curAddr='',hv=false,cs=null,cf='environment';
+var S={users:[],groups:[],clr:{a:0,m:0}},M={},cur=null,rec=null,ws=null,shown=false,isHost=false,fg=true,CD=null,SD=null,ct=null,curAddr='',hv=false,hbT=null,lastSj='',cs=null,cf='environment';
 var DL={};try{DL=JSON.parse(localStorage.dels||'{}')}catch(e){}
 function wsx(){return window.cordova&&cordova.plugins&&cordova.plugins.wsserver}
 function nat(a,g){try{ChatNative.call(a,g||[])}catch(e){}}
@@ -188,7 +188,7 @@ function hostStart(){
   dbg(d,'k','d',function(v){if(v){U=v.U||{};G=v.G||{};TD=v.TD||{};CA=v.CA||0;CM=v.CM||0}
    dbg(d,'m',undefined,function(a){H=(a||[]).sort(function(x,y){return x.t-y.t});w.stop(go,go)})})});
  function go(){w.start(PORT,{onFailure:function(a,p,r){status('السيرفر وقف: '+r)},onOpen:function(){},onMessage:srvMsg,onClose:srvClose},
-  function(){isHost=true;connect('127.0.0.1');
+  function(){isHost=true;connect('127.0.0.1');showApp();clearInterval(hbT);hbT=setInterval(pushState,8000);
    ownIps(function(ips){var b=$('ipb');b.hidden=false;b.textContent='📡 أنت فاتح النقطة'+(ips.length?' — عنوانك: '+ips.join(' / '):'')})},
   function(e){status('فشل تشغيل السيرفر: '+e)})}}
 
@@ -207,33 +207,36 @@ function find(cb){bases(function(bs){
  var q=[];if(localStorage.lastip)q.push(localStorage.lastip);
  bs.forEach(function(b){q.push(b+'.1')});['192.168.43.1','192.168.49.1','192.168.137.1','172.20.10.1'].forEach(function(a){q.push(a)});
  q=q.filter(function(x,i){return x!=='127.0.0.1'&&q.indexOf(x)===i});
- race(q,12,1500,function(a){if(a||!bs.length)return cb(a);
+ race(q,12,3000,function(a){if(a||!bs.length)return cb(a);
   var L=[];bs.forEach(function(b){for(var i=2;i<255;i++)L.push(b+'.'+i)});
-  status('بعمل بحث شامل...');race(L,50,1200,cb)})})}
-function joinGo(){status('بدوّر على الجهاز اللي فاتح النقطة...');$('man').hidden=true;
- find(function(a){if(a)connect(a,0);else{status('مالقيتش السيرفر. اتأكد إنك متصل بالهوت سبوت وإن الجهاز التاني داس "أنا اللي فاتح النقطة"، أو اكتب العنوان بإيدك.');$('man').hidden=false}})}
+  status('بعمل بحث شامل...');race(L,40,2500,cb)})})}
+function joinGo(r){r=r||1;status('بدوّر على الجهاز اللي فاتح النقطة... (محاولة '+r+' من 3)');$('man').hidden=true;
+ find(function(a){if(a)connect(a,0);
+  else if(r<3)setTimeout(function(){joinGo(r+1)},1500);
+  else{status('مالقيتش السيرفر. اتأكد إنك متصل بالهوت سبوت وإن الجهاز التاني داس "أنا اللي فاتح النقطة"، أو اكتب العنوان بإيدك.');$('man').hidden=false}})}
 $('bj').onclick=function(){if(need())joinGo()};
-$('bm').onclick=function(){var a=$('ipf').value.trim();if(!a)return;status('بتصل...');probe(a,3000,function(ok){if(ok)connect(a,0);else status('مفيش سيرفر على العنوان ده')})};
+$('bm').onclick=function(){var a=$('ipf').value.trim();if(!a)return;status('بتصل...');connect(a,0)};
 
 /* ================= الاتصال والرسايل ================= */
-function showApp(){if(shown)return;shown=true;$('login').hidden=true;$('app').hidden=false;nat('perm');nat('start');
+function showApp(){if(shown)return;shown=true;$('login').hidden=true;$('app').hidden=false;drawList();nat('perm');nat('start');
  if(!localStorage.bo){localStorage.bo=1;setTimeout(function(){nat('battery')},1500)}}
 function connect(addr,n){n=n||0;if(addr!=='127.0.0.1')localStorage.lastip=addr;
- if(addr!==curAddr){curAddr=addr;M={};S={users:[],groups:[],clr:{a:0,m:0}}}
- var s=new WebSocket('ws://'+addr+':'+PORT),ok=false;ws=s;hv=false;
- s.onopen=function(){ok=true;$('nb').hidden=true;$('st').textContent='🟢';s.send(JSON.stringify({k:'join',id:me.id,name:me.name}));showApp()};
+ if(addr!==curAddr){curAddr=addr;M={};lastSj='';S={users:[],groups:[],clr:{a:0,m:0}}}
+ var s=new WebSocket('ws://'+addr+':'+PORT),ok=false,got=false,jt=0,jm=null;ws=s;hv=false;
+ s.onopen=function(){ok=true;$('nb').hidden=true;$('st').textContent='🟢';s.send(JSON.stringify({k:'join',id:me.id,name:me.name}));showApp();
+  jm=setInterval(function(){if(got||ws!==s||s.readyState!==1||++jt>4){clearInterval(jm);return}s.send(JSON.stringify({k:'join',id:me.id,name:me.name}))},2500)};
  s.onmessage=function(e){var d=JSON.parse(e.data);
   if(d.k==='hist'){if(d.full)M={};d.msgs.forEach(addM);sortM();drawList();drawMsgs();markRead()}
-  else if(d.k==='state'){S=d;if(!S.clr)S.clr={a:0,m:0};var mu=S.users.filter(function(u){return u.id===me.id})[0];if(mu&&mu.name!==me.name){me.name=mu.name;localStorage.cname=me.name}applyClr();drawList();subt();sc()}
+  else if(d.k==='state'){got=true;var sj=JSON.stringify(d);if(sj===lastSj)return;lastSj=sj;S=d;if(!S.clr)S.clr={a:0,m:0};var mu=S.users.filter(function(u){return u.id===me.id})[0];if(mu&&mu.name!==me.name){me.name=mu.name;localStorage.cname=me.name}applyClr();drawList();subt();sc()}
   else if(d.k==='msg'){var m=d.m;addM(m);
    if(m.chat===cur&&fg){if(!$('e_'+m.id)){var c2=$('msgs');c2.appendChild(mk(m));c2.scrollTop=c2.scrollHeight}markRead()}
    else if(m.from!==me.id&&!fg)notify(m);
    drawList();sc()}
   else if(d.k==='upd'){d.ms.forEach(function(u){for(var c in M)M[c].forEach(function(m){if(m.id===u.id){m.dl=u.dl;m.rd=u.rd;var t=$('t_'+m.id);if(t)tick(m,t)}})});sc()}
   else if(d.k==='del'){d.ids.forEach(function(i){for(var c in M)M[c]=M[c].filter(function(m){return m.id!==i});var el=$('e_'+i);if(el)el.remove()});drawList();sc()}};
- s.onclose=function(){$('st').textContent='🔴';if(ws!==s)return;
+ s.onclose=function(){clearInterval(jm);$('st').textContent='🔴';if(ws!==s)return;
   setTimeout(function(){if(ws===s&&ws.readyState!==1&&shown)$('nb').hidden=false},5000);
-  if(n>=5&&!isHost){find(function(a){if(a)connect(a,0);else $('st').textContent='🔴 مفيش سيرفر'});return}
+  if(n>=5&&!isHost){find(function(a){if(a)connect(a,0);else{$('st').textContent='🔴 مفيش سيرفر';if(!shown){status('مفيش سيرفر. اتأكد من العنوان وإن الجهاز التاني فاتح النقطة.');$('man').hidden=false}}});return}
   setTimeout(function(){if(ws===s)connect(addr,ok?1:n+1)},2000)};
  s.onerror=function(){}}
 function sc(){}
